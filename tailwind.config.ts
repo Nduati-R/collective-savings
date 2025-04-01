@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,13 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Custom colors for our savings app
+				brand: {
+					teal: '#06b6d4',
+					coral: '#fb7185',
+					success: '#10b981',
+					warning: '#f59e0b',
 				}
 			},
 			borderRadius: {
