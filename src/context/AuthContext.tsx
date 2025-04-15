@@ -1,6 +1,32 @@
 
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { toast } from "sonner";
+import axios from "axios";
+
+// API base URL - update to match your Django backend
+const API_URL = "http://localhost:8000/api";
+
+// Create axios instance with baseURL
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Add interceptor to include token in requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 type User = {
   id: string;
@@ -28,15 +54,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const storedUser = localStorage.getItem("user");
         const token = localStorage.getItem("token");
         
-        if (storedUser && token) {
-          // In a real app, verify the token with the backend here
-          setUser(JSON.parse(storedUser));
+        if (token) {
+          // Verify token by fetching user profile
+          const response = await api.get("/users/profile/");
+          setUser(response.data);
         }
       } catch (error) {
         console.error("Authentication error:", error);
+        // Clear invalid token
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
       } finally {
         setIsLoading(false);
       }
@@ -45,30 +74,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
-  // For the purpose of this demo, we'll simulate authentication calls
-  // In a real app, these would be API calls to your Django backend
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, we're not validating credentials
-      const mockUser = {
-        id: "1",
-        username: email.split('@')[0],
+      // Get JWT token
+      const tokenResponse = await api.post("/token/", {
         email,
-      };
+        password,
+      });
       
-      // Save to localStorage (in a real app, you'd get a token from your API)
-      localStorage.setItem("user", JSON.stringify(mockUser));
-      localStorage.setItem("token", "mock-jwt-token");
+      const { access, refresh } = tokenResponse.data;
       
-      setUser(mockUser);
+      // Save tokens
+      localStorage.setItem("token", access);
+      localStorage.setItem("refreshToken", refresh);
+      
+      // Get user profile
+      const userResponse = await api.get("/users/profile/");
+      setUser(userResponse.data);
+      
       toast.success("Successfully logged in!");
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Failed to login. Please try again.");
+      toast.error("Failed to login. Please check your credentials and try again.");
       throw error;
     } finally {
       setIsLoading(false);
@@ -78,19 +106,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (username: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockUser = {
-        id: Math.random().toString(36).substr(2, 9), // Generate random ID
+      // Register user
+      await api.post("/users/register/", {
         username,
         email,
-      };
+        password,
+        password2: password,
+      });
       
-      localStorage.setItem("user", JSON.stringify(mockUser));
-      localStorage.setItem("token", "mock-jwt-token");
+      // Login after successful registration
+      await login(email, password);
       
-      setUser(mockUser);
       toast.success("Account created successfully!");
     } catch (error) {
       console.error("Signup error:", error);
@@ -102,8 +128,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    localStorage.removeItem("user");
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
     setUser(null);
     toast.info("You have been logged out.");
   };
@@ -111,13 +137,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (updatedUser: Partial<User>) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Update user profile
+      const response = await api.patch("/users/profile/update/", updatedUser);
       
-      const updatedUserData = { ...user, ...updatedUser };
-      localStorage.setItem("user", JSON.stringify(updatedUserData));
-      
+      // Update user state with the returned data
+      const updatedUserData = { ...user, ...response.data };
       setUser(updatedUserData as User);
+      
       toast.success("Profile updated successfully!");
     } catch (error) {
       console.error("Profile update error:", error);

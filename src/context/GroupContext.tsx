@@ -2,6 +2,32 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
+import axios from "axios";
+
+// API base URL - update to match your Django backend
+const API_URL = "http://localhost:8000/api";
+
+// Create axios instance with baseURL
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Add interceptor to include token in requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 export type Member = {
   id: string;
@@ -47,59 +73,85 @@ type GroupContextType = {
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
 
 export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load groups from localStorage on mount
+  // Load groups from API on mount or when auth state changes
   useEffect(() => {
-    const loadGroups = async () => {
+    const fetchGroups = async () => {
+      if (!isAuthenticated) {
+        setGroups([]);
+        setIsLoading(false);
+        return;
+      }
+      
       setIsLoading(true);
       try {
-        const storedGroups = localStorage.getItem("groups");
+        const response = await api.get("/groups/");
         
-        if (storedGroups) {
-          setGroups(JSON.parse(storedGroups));
-        } else {
-          // Initialize with empty array if no groups found
-          localStorage.setItem("groups", JSON.stringify([]));
-        }
+        // Transform data to match our frontend model
+        const transformedGroups = response.data.map((group: any) => ({
+          id: group.id,
+          name: group.name,
+          description: group.description,
+          targetAmount: group.target_amount,
+          currentAmount: group.current_amount,
+          admin: group.admin.id,
+          members: group.members.map((member: any) => ({
+            id: member.id,
+            username: member.username,
+          })),
+          transactions: group.transactions.map((tx: any) => ({
+            id: tx.id,
+            groupId: tx.group,
+            userId: tx.user.id,
+            username: tx.username,
+            amount: tx.amount,
+            type: tx.type,
+            status: tx.status,
+            timestamp: tx.timestamp,
+          })),
+          createdAt: group.created_at,
+        }));
+        
+        setGroups(transformedGroups);
       } catch (error) {
-        console.error("Error loading groups:", error);
+        console.error("Error fetching groups:", error);
+        toast.error("Failed to load groups. Please try again.");
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (user) {
-      loadGroups();
-    } else {
-      setGroups([]);
-      setIsLoading(false);
-    }
-  }, [user]);
-
-  // Save groups to localStorage whenever they change
-  useEffect(() => {
-    if (user && groups.length > 0) {
-      localStorage.setItem("groups", JSON.stringify(groups));
-    }
-  }, [groups, user]);
+    fetchGroups();
+  }, [isAuthenticated]);
 
   const createGroup = async (newGroup: Omit<Group, "id" | "currentAmount" | "transactions" | "createdAt">) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await api.post("/groups/", {
+        name: newGroup.name,
+        description: newGroup.description,
+        target_amount: newGroup.targetAmount,
+      });
       
+      // Transform API response to match our frontend model
       const createdGroup: Group = {
-        ...newGroup,
-        id: Math.random().toString(36).substr(2, 9),
-        currentAmount: 0,
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description,
+        targetAmount: response.data.target_amount,
+        currentAmount: response.data.current_amount,
+        admin: response.data.admin.id,
+        members: response.data.members.map((member: any) => ({
+          id: member.id,
+          username: member.username,
+        })),
         transactions: [],
-        createdAt: new Date().toISOString(),
+        createdAt: response.data.created_at,
       };
       
       setGroups(prev => [...prev, createdGroup]);
@@ -114,33 +166,54 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const joinGroup = async (groupId: string) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await api.post(`/groups/${groupId}/join/`);
       
-      setGroups(prev => prev.map(group => {
-        if (group.id === groupId) {
-          // Check if user is already a member
-          const isMember = group.members.some(member => member.id === user.id);
-          if (isMember) {
-            throw new Error("You are already a member of this group");
-          }
-          
-          return {
-            ...group,
-            members: [...group.members, { id: user.id, username: user.username }]
-          };
+      // Fetch updated group
+      const response = await api.get(`/groups/${groupId}/`);
+      
+      // Transform API response
+      const updatedGroup: Group = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description,
+        targetAmount: response.data.target_amount,
+        currentAmount: response.data.current_amount,
+        admin: response.data.admin.id,
+        members: response.data.members.map((member: any) => ({
+          id: member.id,
+          username: member.username,
+        })),
+        transactions: response.data.transactions.map((tx: any) => ({
+          id: tx.id,
+          groupId: tx.group,
+          userId: tx.user.id,
+          username: tx.username,
+          amount: tx.amount,
+          type: tx.type,
+          status: tx.status,
+          timestamp: tx.timestamp,
+        })),
+        createdAt: response.data.created_at,
+      };
+      
+      setGroups(prev => {
+        const index = prev.findIndex(group => group.id === groupId);
+        if (index >= 0) {
+          const newGroups = [...prev];
+          newGroups[index] = updatedGroup;
+          return newGroups;
         }
-        return group;
-      }));
+        return [...prev, updatedGroup];
+      });
       
       toast.success("You have joined the group successfully!");
     } catch (error) {
       console.error("Error joining group:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to join group");
+      toast.error("Failed to join group. Please try again.");
       throw error;
     } finally {
       setIsLoading(false);
@@ -148,39 +221,19 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const leaveGroup = async (groupId: string) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await api.post(`/groups/${groupId}/leave/`);
       
-      // Find the group
-      const group = groups.find(g => g.id === groupId);
-      
-      if (!group) {
-        throw new Error("Group not found");
-      }
-      
-      // Check if user is the admin
-      if (group.admin === user.id) {
-        throw new Error("Admin cannot leave the group. Transfer ownership first.");
-      }
-      
-      setGroups(prev => prev.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            members: group.members.filter(member => member.id !== user.id)
-          };
-        }
-        return group;
-      }));
+      // Remove group from list if user is no longer a member
+      setGroups(prev => prev.filter(group => group.id !== groupId));
       
       toast.success("You have left the group successfully.");
     } catch (error) {
       console.error("Error leaving group:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to leave group");
+      toast.error("Failed to leave group. Please try again.");
       throw error;
     } finally {
       setIsLoading(false);
@@ -192,34 +245,45 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const contributeToGroup = async (groupId: string, amount: number) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const contribution: Transaction = {
-        id: Math.random().toString(36).substr(2, 9),
-        groupId,
-        userId: user.id,
-        username: user.username,
+      await api.post(`/transactions/contribute/${groupId}/`, {
         amount,
-        type: "contribution",
-        status: "approved", // Contributions are automatically approved
-        timestamp: new Date().toISOString()
+      });
+      
+      // Fetch updated group
+      const response = await api.get(`/groups/${groupId}/`);
+      
+      // Transform API response
+      const updatedGroup: Group = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description,
+        targetAmount: response.data.target_amount,
+        currentAmount: response.data.current_amount,
+        admin: response.data.admin.id,
+        members: response.data.members.map((member: any) => ({
+          id: member.id,
+          username: member.username,
+        })),
+        transactions: response.data.transactions.map((tx: any) => ({
+          id: tx.id,
+          groupId: tx.group,
+          userId: tx.user.id,
+          username: tx.username,
+          amount: tx.amount,
+          type: tx.type,
+          status: tx.status,
+          timestamp: tx.timestamp,
+        })),
+        createdAt: response.data.created_at,
       };
       
-      setGroups(prev => prev.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            currentAmount: group.currentAmount + amount,
-            transactions: [...group.transactions, contribution]
-          };
-        }
-        return group;
-      }));
+      setGroups(prev => prev.map(group => 
+        group.id === groupId ? updatedGroup : group
+      ));
       
       toast.success(`Successfully contributed ${amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`);
     } catch (error) {
@@ -232,48 +296,50 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const requestWithdrawal = async (groupId: string, amount: number) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const group = groups.find(g => g.id === groupId);
-      
-      if (!group) {
-        throw new Error("Group not found");
-      }
-      
-      if (amount > group.currentAmount) {
-        throw new Error("Withdrawal amount exceeds available funds");
-      }
-      
-      const withdrawal: Transaction = {
-        id: Math.random().toString(36).substr(2, 9),
-        groupId,
-        userId: user.id,
-        username: user.username,
+      await api.post(`/transactions/withdraw/${groupId}/`, {
         amount,
-        type: "withdrawal",
-        status: "pending",
-        timestamp: new Date().toISOString()
+      });
+      
+      // Fetch updated group
+      const response = await api.get(`/groups/${groupId}/`);
+      
+      // Transform API response
+      const updatedGroup: Group = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description,
+        targetAmount: response.data.target_amount,
+        currentAmount: response.data.current_amount,
+        admin: response.data.admin.id,
+        members: response.data.members.map((member: any) => ({
+          id: member.id,
+          username: member.username,
+        })),
+        transactions: response.data.transactions.map((tx: any) => ({
+          id: tx.id,
+          groupId: tx.group,
+          userId: tx.user.id,
+          username: tx.username,
+          amount: tx.amount,
+          type: tx.type,
+          status: tx.status,
+          timestamp: tx.timestamp,
+        })),
+        createdAt: response.data.created_at,
       };
       
-      setGroups(prev => prev.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            transactions: [...group.transactions, withdrawal]
-          };
-        }
-        return group;
-      }));
+      setGroups(prev => prev.map(group => 
+        group.id === groupId ? updatedGroup : group
+      ));
       
       toast.success("Withdrawal request submitted for approval");
     } catch (error) {
       console.error("Error requesting withdrawal:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to request withdrawal");
+      toast.error("Failed to request withdrawal. Please try again.");
       throw error;
     } finally {
       setIsLoading(false);
@@ -281,57 +347,50 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const approveWithdrawal = async (groupId: string, transactionId: string) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await api.post(`/transactions/approve/${groupId}/`, {
+        transaction_id: transactionId,
+      });
       
-      const group = groups.find(g => g.id === groupId);
+      // Fetch updated group
+      const response = await api.get(`/groups/${groupId}/`);
       
-      if (!group) {
-        throw new Error("Group not found");
-      }
+      // Transform API response
+      const updatedGroup: Group = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description,
+        targetAmount: response.data.target_amount,
+        currentAmount: response.data.current_amount,
+        admin: response.data.admin.id,
+        members: response.data.members.map((member: any) => ({
+          id: member.id,
+          username: member.username,
+        })),
+        transactions: response.data.transactions.map((tx: any) => ({
+          id: tx.id,
+          groupId: tx.group,
+          userId: tx.user.id,
+          username: tx.username,
+          amount: tx.amount,
+          type: tx.type,
+          status: tx.status,
+          timestamp: tx.timestamp,
+        })),
+        createdAt: response.data.created_at,
+      };
       
-      // Check if user is the admin
-      if (group.admin !== user.id) {
-        throw new Error("Only the admin can approve withdrawals");
-      }
-      
-      const transaction = group.transactions.find(t => t.id === transactionId);
-      
-      if (!transaction) {
-        throw new Error("Transaction not found");
-      }
-      
-      if (transaction.type !== "withdrawal" || transaction.status !== "pending") {
-        throw new Error("This transaction cannot be approved");
-      }
-      
-      if (transaction.amount > group.currentAmount) {
-        throw new Error("Insufficient funds in the group");
-      }
-      
-      setGroups(prev => prev.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            currentAmount: group.currentAmount - transaction.amount,
-            transactions: group.transactions.map(t => 
-              t.id === transactionId 
-                ? { ...t, status: "approved" } 
-                : t
-            )
-          };
-        }
-        return group;
-      }));
+      setGroups(prev => prev.map(group => 
+        group.id === groupId ? updatedGroup : group
+      ));
       
       toast.success("Withdrawal request approved");
     } catch (error) {
       console.error("Error approving withdrawal:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to approve withdrawal");
+      toast.error("Failed to approve withdrawal. Please try again.");
       throw error;
     } finally {
       setIsLoading(false);
@@ -339,52 +398,50 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const rejectWithdrawal = async (groupId: string, transactionId: string) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await api.post(`/transactions/reject/${groupId}/`, {
+        transaction_id: transactionId,
+      });
       
-      const group = groups.find(g => g.id === groupId);
+      // Fetch updated group
+      const response = await api.get(`/groups/${groupId}/`);
       
-      if (!group) {
-        throw new Error("Group not found");
-      }
+      // Transform API response
+      const updatedGroup: Group = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description,
+        targetAmount: response.data.target_amount,
+        currentAmount: response.data.current_amount,
+        admin: response.data.admin.id,
+        members: response.data.members.map((member: any) => ({
+          id: member.id,
+          username: member.username,
+        })),
+        transactions: response.data.transactions.map((tx: any) => ({
+          id: tx.id,
+          groupId: tx.group,
+          userId: tx.user.id,
+          username: tx.username,
+          amount: tx.amount,
+          type: tx.type,
+          status: tx.status,
+          timestamp: tx.timestamp,
+        })),
+        createdAt: response.data.created_at,
+      };
       
-      // Check if user is the admin
-      if (group.admin !== user.id) {
-        throw new Error("Only the admin can reject withdrawals");
-      }
-      
-      const transaction = group.transactions.find(t => t.id === transactionId);
-      
-      if (!transaction) {
-        throw new Error("Transaction not found");
-      }
-      
-      if (transaction.type !== "withdrawal" || transaction.status !== "pending") {
-        throw new Error("This transaction cannot be rejected");
-      }
-      
-      setGroups(prev => prev.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            transactions: group.transactions.map(t => 
-              t.id === transactionId 
-                ? { ...t, status: "rejected" } 
-                : t
-            )
-          };
-        }
-        return group;
-      }));
+      setGroups(prev => prev.map(group => 
+        group.id === groupId ? updatedGroup : group
+      ));
       
       toast.success("Withdrawal request rejected");
     } catch (error) {
       console.error("Error rejecting withdrawal:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to reject withdrawal");
+      toast.error("Failed to reject withdrawal. Please try again.");
       throw error;
     } finally {
       setIsLoading(false);
