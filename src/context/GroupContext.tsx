@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
@@ -37,6 +36,7 @@ type GroupContextType = {
   createGroup: (group: Omit<Group, "id" | "currentAmount" | "transactions" | "createdAt">) => Promise<void>;
   joinGroup: (groupId: string) => Promise<void>;
   leaveGroup: (groupId: string) => Promise<void>;
+  deleteGroup: (groupId: string) => Promise<void>;
   getGroupById: (groupId: string) => Group | undefined;
   contributeToGroup: (groupId: string, amount: number) => Promise<void>;
   requestWithdrawal: (groupId: string, amount: number) => Promise<void>;
@@ -181,6 +181,39 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error("Error leaving group:", error);
       toast.error(error instanceof Error ? error.message : "Failed to leave group");
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteGroup = async (groupId: string) => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Find the group
+      const group = groups.find(g => g.id === groupId);
+      
+      if (!group) {
+        throw new Error("Group not found");
+      }
+      
+      // Check if user is the admin
+      if (group.admin !== user.id) {
+        throw new Error("Only the admin can delete the group");
+      }
+      
+      // Remove the group
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+      
+      toast.success("Group deleted successfully");
+    } catch (error) {
+      console.error("Error deleting group:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete group");
       throw error;
     } finally {
       setIsLoading(false);
@@ -399,6 +432,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         createGroup,
         joinGroup,
         leaveGroup,
+        deleteGroup,
         getGroupById,
         contributeToGroup,
         requestWithdrawal,

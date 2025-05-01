@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,8 @@ import {
   ArrowUpCircle, 
   Check, 
   X, 
-  Clock
+  Clock,
+  Trash2
 } from "lucide-react";
 import { 
   Dialog, 
@@ -34,6 +34,16 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
 import { useGroups, Transaction } from "@/context/GroupContext";
 import { useForm } from "react-hook-form";
@@ -69,10 +79,11 @@ type WithdrawalFormValues = z.infer<typeof withdrawalSchema>;
 const GroupDetail = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const { isAuthenticated, user } = useAuth();
-  const { getGroupById, contributeToGroup, requestWithdrawal, joinGroup, leaveGroup, approveWithdrawal, rejectWithdrawal, isLoading } = useGroups();
+  const { getGroupById, contributeToGroup, requestWithdrawal, joinGroup, leaveGroup, approveWithdrawal, rejectWithdrawal, deleteGroup, isLoading } = useGroups();
   const navigate = useNavigate();
   const [showContributeDialog, setShowContributeDialog] = useState(false);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   
   // Get group by ID
   const group = getGroupById(groupId || "");
@@ -158,6 +169,18 @@ const GroupDetail = () => {
       navigate("/groups");
     } catch (error) {
       console.error("Error leaving group:", error);
+    }
+  };
+  
+  // Handle delete group
+  const handleDeleteGroup = async () => {
+    if (!group) return;
+    try {
+      await deleteGroup(group.id);
+      toast.success("Group deleted successfully");
+      navigate("/groups");
+    } catch (error) {
+      console.error("Error deleting group:", error);
     }
   };
   
@@ -262,9 +285,45 @@ const GroupDetail = () => {
             {isMember ? (
               <div className="flex gap-2 w-full md:w-auto">
                 {isAdmin ? (
-                  <Button variant="outline" className="w-full md:w-auto" disabled>
-                    Admin
-                  </Button>
+                  <>
+                    <Button variant="outline" className="w-full md:w-auto" disabled>
+                      Admin
+                    </Button>
+                    <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                      <Button 
+                        variant="destructive"
+                        className="w-full md:w-auto"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Group
+                      </Button>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the group
+                            and all of its data including transactions and member information.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={handleDeleteGroup}
+                            disabled={isLoading}
+                          >
+                            {isLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                              </>
+                            ) : (
+                              "Delete Group"
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
                 ) : (
                   <Button 
                     variant="outline" 
