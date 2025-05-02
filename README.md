@@ -1,6 +1,4 @@
-Here's a comprehensive `README.md` file for your Collective Savings project:
 
-```markdown
 # Collective Savings App
 
 A Django backend + React frontend application for managing group savings with features for creating groups, tracking contributions/withdrawals, and monitoring savings progress.
@@ -173,4 +171,3 @@ The README includes:
 - Deployment guide
 - Contribution guidelines
 
-You can customize any section to better match your project's specific requirements.
