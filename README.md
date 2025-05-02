@@ -1,73 +1,176 @@
-# Welcome to your Lovable project
+Here's a comprehensive `README.md` file for your Collective Savings project:
 
-## Project info
+```markdown
+# Collective Savings App
 
-**URL**: https://lovable.dev/projects/8b9be2db-6b28-420b-ac5e-cb8342ccead1
+A Django backend + React frontend application for managing group savings with features for creating groups, tracking contributions/withdrawals, and monitoring savings progress.
 
-## How can I edit this code?
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **User Authentication**: Secure signup/login functionality
+- **Savings Groups**: Create and manage savings groups
+- **Transactions**: Record contributions and withdrawals
+- **Dashboard**: View savings summary and recent activity
+- **Group Management**: Add/remove members, view group details
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/8b9be2db-6b28-420b-ac5e-cb8342ccead1) and start prompting.
+## Technologies Used
 
-Changes made via Lovable will be committed automatically to this repo.
+### Backend
+- Python 3.11
+- Django 4.2
+- Django REST Framework
+- SQLite (Development)
+- PostgreSQL (Production-ready)
 
-**Use your preferred IDE**
+### Frontend
+- React 18
+- Axios for API calls
+- React Router for navigation
+- Tailwind CSS (or your preferred CSS framework)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Project Structure
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+collective-savings/
+├── backend/               # Django project
+│   ├── savings/           # Main app
+│   │   ├── migrations/    # Database migrations
+│   │   ├── models.py      # Data models
+│   │   ├── serializers.py # API serializers
+│   │   ├── views.py       # API views
+│   │   └── urls.py       # API routes
+│   ├── manage.py          # Django CLI
+│   └── settings.py        # Django settings
+└── frontend/              # React app
+    ├── public/            # Static files
+    └── src/               # React source
+        ├── components/    # UI components
+        ├── pages/         # Application pages
+        ├── App.js         # Main app component
+        └── index.js       # Entry point
 ```
 
-**Edit a file directly in GitHub**
+## Setup Instructions
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Prerequisites
+- Python 3.11+
+- Node.js 16+
+- PostgreSQL (for production)
 
-**Use GitHub Codespaces**
+### Backend Setup
+1. Navigate to backend folder:
+   ```bash
+   cd backend
+   ```
+2. Create and activate virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   venv\Scripts\activate     # Windows
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Apply migrations:
+   ```bash
+   python manage.py migrate
+   ```
+5. Create superuser:
+   ```bash
+   python manage.py createsuperuser
+   ```
+6. Run development server:
+   ```bash
+   python manage.py runserver
+   ```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Frontend Setup
+1. Navigate to frontend folder:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start development server:
+   ```bash
+   npm start
+   ```
 
-## What technologies are used for this project?
+## Environment Variables
 
-This project is built with .
+### Backend (.env)
+```
+SECRET_KEY=your_django_secret_key
+DEBUG=True
+DATABASE_URL=postgres://user:pass@localhost:5432/dbname
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Frontend (.env)
+```
+REACT_APP_API_BASE=http://localhost:8000/api
+```
 
-## How can I deploy this project?
+## API Endpoints
 
-Simply open [Lovable](https://lovable.dev/projects/8b9be2db-6b28-420b-ac5e-cb8342ccead1) and click on Share -> Publish.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/register/` | POST | User registration |
+| `/api/auth/login/` | POST | User login |
+| `/api/groups/` | GET, POST | List/Create groups |
+| `/api/groups/:id/` | GET, DELETE | Group details |
+| `/api/transactions/` | POST | Create transaction |
+| `/api/groups/:id/transactions/` | GET | Group transactions |
+| `/api/dashboard/summary/` | GET | Dashboard summary |
 
-## Can I connect a custom domain to my Lovable project?
+## Deployment
 
-Yes it is!
+### Backend (Example for Heroku)
+```bash
+heroku create
+heroku addons:create heroku-postgresql:hobby-dev
+git push heroku main
+heroku run python manage.py migrate
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Frontend (Example for Vercel)
+```bash
+vercel
+vercel env add REACT_APP_API_BASE production https://your-api.herokuapp.com/api
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/fooBar`)
+3. Commit your changes (`git commit -am 'Add some fooBar'`)
+4. Push to the branch (`git push origin feature/fooBar`)
+5. Create a new Pull Request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details
+```
+
+## How to Use This README
+
+1. Replace placeholder values with your actual project details
+2. Add your own screenshot (create a `/frontend/public/screenshot.png` file)
+3. Update the deployment section with your preferred hosting services
+4. Add any additional sections specific to your project
+5. Save as `README.md` in your project root directory
+
+The README includes:
+- Project overview
+- Key features
+- Technology stack
+- Setup instructions
+- API documentation
+- Deployment guide
+- Contribution guidelines
+
+You can customize any section to better match your project's specific requirements.
